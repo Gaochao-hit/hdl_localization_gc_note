@@ -49,9 +49,9 @@ private:
   void initialize_params() {
     // read globalmap from a pcd file
     std::string globalmap_pcd = private_nh.param<std::string>("globalmap_pcd", "");
-    globalmap.reset(new pcl::PointCloud<PointT>());
-    pcl::io::loadPCDFile(globalmap_pcd, *globalmap);
-    globalmap->header.frame_id = "map";
+    globalmap.reset(new pcl::PointCloud<PointT>());//设置地址
+    pcl::io::loadPCDFile(globalmap_pcd, *globalmap);//todo pcl实现pcd文件的加载
+    globalmap->header.frame_id = "map";             //设置frame
 
     // downsample globalmap
     double downsample_resolution = private_nh.param<double>("downsample_resolution", 0.1);
@@ -60,7 +60,7 @@ private:
     voxelgrid->setInputCloud(globalmap);
 
     pcl::PointCloud<PointT>::Ptr filtered(new pcl::PointCloud<PointT>());
-    voxelgrid->filter(*filtered);
+    voxelgrid->filter(*filtered);//进行滤波处理 并存放在filtered地址里
 
     globalmap = filtered;
   }

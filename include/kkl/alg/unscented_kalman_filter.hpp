@@ -40,7 +40,7 @@ public:
     N(state_dim),
     M(input_dim),
     K(measurement_dim),
-    S(2 * state_dim + 1),
+    S(2 * state_dim + 1),//todo sigmapoints 需要是2 × state_dim + 1
     mean(mean),
     cov(cov),
     system(system),
@@ -49,20 +49,20 @@ public:
     lambda(1),
     normal_dist(0.0, 1.0)
   {
-    weights.resize(S, 1);
+    weights.resize(S, 1);//设置weights维度
     sigma_points.resize(S, N);
-    ext_weights.resize(2 * (N + K) + 1, 1);
+    ext_weights.resize(2 * (N + K) + 1, 1);//ext_weights: extened weights似乎包含了状态量和测量噪声
     ext_sigma_points.resize(2 * (N + K) + 1, N + K);
     expected_measurements.resize(2 * (N + K) + 1, K);
 
     // initialize weights for unscented filter
-    weights[0] = lambda / (N + lambda);
-    for (int i = 1; i < 2 * N + 1; i++) {
+    weights[0] = lambda / (N + lambda);//todo lamda的作用？？   此处的系数是无及卡尔慢滤波的权重的标准计算过程   ，   lamda = n * a^2 -n,其中a是sigma点的散步程度，n是输出的维度
+    for (int i = 1; i < 2 * N + 1; i++) {//todo 无迹卡尔慢滤波是在点的附近取2*n个点来计算
       weights[i] = 1 / (2 * (N + lambda));
     }
 
     // weights for extended state space which includes error variances
-    ext_weights[0] = lambda / (N + K + lambda);
+    ext_weights[0] = lambda / (N + K + lambda);//为了使得权重的和为1
     for (int i = 1; i < 2 * (N + K) + 1; i++) {
       ext_weights[i] = 1 / (2 * (N + K + lambda));
     }
@@ -77,7 +77,7 @@ public:
     ensurePositiveFinite(cov);
     computeSigmaPoints(mean, cov, sigma_points);
     for (int i = 0; i < S; i++) {
-      sigma_points.row(i) = system.f(sigma_points.row(i), control);
+      sigma_points.row(i) = system.f(sigma_points.row(i), control);//todo 此处f函数是状态转移方程
     }
 
     const auto& R = process_noise;
@@ -89,11 +89,11 @@ public:
     mean_pred.setZero();
     cov_pred.setZero();
     for (int i = 0; i < S; i++) {
-      mean_pred += weights[i] * sigma_points.row(i);
+      mean_pred += weights[i] * sigma_points.row(i);//todo 将所有的sigma点求得加权均值
     }
     for (int i = 0; i < S; i++) {
-      VectorXt diff = sigma_points.row(i).transpose() - mean;
-      cov_pred += weights[i] * diff * diff.transpose();
+      VectorXt diff = sigma_points.row(i).transpose() - mean;//mean是上一次的mean
+      cov_pred += weights[i] * diff * diff.transpose();//计算协方差矩阵
     }
     cov_pred += R;
 
@@ -107,7 +107,7 @@ public:
    */
   void correct(const VectorXt& measurement) {
     // create extended state space which includes error variances
-    VectorXt ext_mean_pred = VectorXt::Zero(N + K, 1);
+    VectorXt ext_mean_pred = VectorXt::Zero(N + K, 1);//扩展的协方差矩阵包含了噪声的方差
     MatrixXt ext_cov_pred = MatrixXt::Zero(N + K, N + K);
     ext_mean_pred.topLeftCorner(N, 1) = VectorXt(mean);
     ext_cov_pred.topLeftCorner(N, N) = MatrixXt(cov);
@@ -116,11 +116,11 @@ public:
     ensurePositiveFinite(ext_cov_pred);
     computeSigmaPoints(ext_mean_pred, ext_cov_pred, ext_sigma_points);
 
-    // unscented transform
+    // unscented transform  todo：即根据测量方程和一系列的状态值计算一系列的输出值
     expected_measurements.setZero();
     for (int i = 0; i < ext_sigma_points.rows(); i++) {
-      expected_measurements.row(i) = system.h(ext_sigma_points.row(i).transpose().topLeftCorner(N, 1));
-      expected_measurements.row(i) += VectorXt(ext_sigma_points.row(i).transpose().bottomRightCorner(K, 1));
+      expected_measurements.row(i) = system.h(ext_sigma_points.row(i).transpose().topLeftCorner(N, 1));//依据测量方程计算预测得到的测量值
+      expected_measurements.row(i) += VectorXt(ext_sigma_points.row(i).transpose().bottomRightCorner(K, 1));//每个预测测量值加上噪声
     }
 
     VectorXt expected_measurement_mean = VectorXt::Zero(K);
@@ -130,7 +130,7 @@ public:
     MatrixXt expected_measurement_cov = MatrixXt::Zero(K, K);
     for (int i = 0; i < ext_sigma_points.rows(); i++) {
       VectorXt diff = expected_measurements.row(i).transpose() - expected_measurement_mean;
-      expected_measurement_cov += ext_weights[i] * diff * diff.transpose();
+      expected_measurement_cov += ext_weights[i] * diff * diff.transpose();//预测的测量值的协方差
     }
 
     // calculated transformed covariance
@@ -144,8 +144,8 @@ public:
     kalman_gain = sigma * expected_measurement_cov.inverse();
     const auto& K = kalman_gain;
 
-    VectorXt ext_mean = ext_mean_pred + K * (measurement - expected_measurement_mean);
-    MatrixXt ext_cov = ext_cov_pred - K * expected_measurement_cov * K.transpose();
+    VectorXt ext_mean = ext_mean_pred + K * (measurement - expected_measurement_mean);//在测量值与预测的测量值取折中作为其均值的期望
+    MatrixXt ext_cov = ext_cov_pred - K * expected_measurement_cov * K.transpose();//融合后的方差
 
     mean = ext_mean.topLeftCorner(N, 1);
     cov = ext_cov.topLeftCorner(N, N);
@@ -211,7 +211,7 @@ private:
 
     Eigen::LLT<MatrixXt> llt;
     llt.compute((n + lambda) * cov);
-    MatrixXt l = llt.matrixL();
+    MatrixXt l = llt.matrixL();//todo 此处的计算原则是什么
 
     sigma_points.row(0) = mean;
     for (int i = 0; i < n; i++) {

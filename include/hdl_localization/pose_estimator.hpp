@@ -29,20 +29,21 @@ public:
    * @param quat                initial orientation
    * @param cool_time_duration  during "cool time", prediction is not performed
    */
+  //todo 16个状态，7个观测
   PoseEstimator(pcl::Registration<PointT, PointT>::Ptr& registration, const ros::Time& stamp, const Eigen::Vector3f& pos, const Eigen::Quaternionf& quat, double cool_time_duration = 1.0)
     : init_stamp(stamp),
-      registration(registration),
-      cool_time_duration(cool_time_duration)
+      registration(registration),//配准方法
+      cool_time_duration(cool_time_duration)//  todo 什么是 cool_time
   {
-    process_noise = Eigen::MatrixXf::Identity(16, 16);
+    process_noise = Eigen::MatrixXf::Identity(16, 16);//过程噪声
     process_noise.middleRows(0, 3) *= 1.0;
-    process_noise.middleRows(3, 3) *= 1.0;
+    process_noise.middleRows(3, 3) *= 1.0;//middleRows()方法 返回4,5,6行
     process_noise.middleRows(6, 4) *= 0.5;
     process_noise.middleRows(10, 3) *= 1e-6;
     process_noise.middleRows(13, 3) *= 1e-6;
 
-    Eigen::MatrixXf measurement_noise = Eigen::MatrixXf::Identity(7, 7);
-    measurement_noise.middleRows(0, 3) *= 0.01;
+    Eigen::MatrixXf measurement_noise = Eigen::MatrixXf::Identity(7, 7);//量测噪声
+    measurement_noise.middleRows(0, 3) *= 0.01;  //量测噪声的值很小
     measurement_noise.middleRows(3, 4) *= 0.001;
 
     Eigen::VectorXf mean(16);
@@ -73,7 +74,7 @@ public:
     double dt = (stamp - prev_stamp).toSec();
     prev_stamp = stamp;
 
-    ukf->setProcessNoiseCov(process_noise * dt);
+    ukf->setProcessNoiseCov(process_noise * dt);//过程噪声的协方差设置为过程噪声与时间t的乘积
     ukf->system.dt = dt;
 
     Eigen::VectorXf control(6);
@@ -94,10 +95,10 @@ public:
     init_guess.block<3, 1>(0, 3) = pos();
 
     pcl::PointCloud<PointT>::Ptr aligned(new pcl::PointCloud<PointT>());
-    registration->setInputSource(cloud);
-    registration->align(*aligned, init_guess);
+    registration->setInputSource(cloud);//用于陪准的  源点云   todo 主程序里面设置了setInputTarget
+    registration->align(*aligned, init_guess);//aligned 陪准后的点云
 
-    Eigen::Matrix4f trans = registration->getFinalTransformation();
+    Eigen::Matrix4f trans = registration->getFinalTransformation();//计算得到的位姿变换
     Eigen::Vector3f p = trans.block<3, 1>(0, 3);
     Eigen::Quaternionf q(trans.block<3, 3>(0, 0));
 
@@ -109,7 +110,7 @@ public:
     observation.middleRows(0, 3) = p;
     observation.middleRows(3, 4) = Eigen::Vector4f(q.w(), q.x(), q.y(), q.z());
 
-    ukf->correct(observation);
+    ukf->correct(observation);//将点云陪准的结果作为correct的输入
     return aligned;
   }
 

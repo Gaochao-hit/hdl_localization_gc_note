@@ -64,3 +64,7 @@ target_link_libraries(globalmap_server_nodelet
   ${PCL_LIBRARIES}
 )
 
+add_executable(pcd_dispose apps/pcd_dispose.cpp)
+target_link_libraries(pcd_dispose ${catkin_LIBRARIES}
+        ${PCL_LIBRARIES})
+

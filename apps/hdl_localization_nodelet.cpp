@@ -40,12 +40,12 @@ public:
     mt_nh = getMTNodeHandle();
     private_nh = getPrivateNodeHandle();
 
-    processing_time.resize(16);
+    processing_time.resize(16);//todo processing_time  用途？？
     initialize_params();
 
     use_imu = private_nh.param<bool>("use_imu", true);
     invert_imu = private_nh.param<bool>("invert_imu", false);
-    if(use_imu) {
+    if(use_imu) {//是否使用imu
       NODELET_INFO("enable imu-based prediction");
       imu_sub = mt_nh.subscribe("/gpsimu_driver/imu_data", 256, &HdlLocalizationNodelet::imu_callback, this);
     }
@@ -69,8 +69,8 @@ private:
     downsample_filter = voxelgrid;
 
     pclomp::NormalDistributionsTransform<PointT, PointT>::Ptr ndt(new pclomp::NormalDistributionsTransform<PointT, PointT>());
-    ndt->setTransformationEpsilon(0.01);
-    ndt->setResolution(ndt_resolution);
+    ndt->setTransformationEpsilon(0.01);//Set the transformation epsilon (maximum allowable difference between two consecutive  transformations) in order for an optimization to be considered as having converged to the final resolution
+    ndt->setResolution(ndt_resolution);//Set/change the voxel grid resolution
     if(ndt_neighbor_search_method == "DIRECT1") {
       NODELET_INFO("search_method DIRECT1 is selected");
       ndt->setNeighborhoodSearchMethod(pclomp::DIRECT1);
@@ -135,12 +135,12 @@ private:
       return;
     }
 
-    auto filtered = downsample(cloud);
+    auto filtered = downsample(cloud);//采样
 
     // predict
-    if(!use_imu) {
+    if(!use_imu) {//若不采用imu，则...
       pose_estimator->predict(stamp, Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero());
-    } else {
+    } else {//否则,利用imu测量值进行预测
       std::lock_guard<std::mutex> lock(imu_data_mutex);
       auto imu_iter = imu_data.begin();
       for(imu_iter; imu_iter != imu_data.end(); imu_iter++) {
@@ -156,7 +156,8 @@ private:
     }
 
     // correct
-    auto t1 = ros::WallTime::now();
+    auto t1 = ros::WallTime::now();//Wall-clock time, or wall time, is the human perception of the passage of time from the start to the completion of a task.
+    // In the context of a task being performed on a computer, wall-clock time is a measure of the real time that elapses from start to end, including time that passes due to programmed (artificial)
     auto aligned = pose_estimator->correct(filtered);
     auto t2 = ros::WallTime::now();
 
@@ -190,7 +191,7 @@ private:
    * @brief callback for initial pose input ("2D Pose Estimate" on rviz)
    * @param pose_msg
    */
-  void initialpose_callback(const geometry_msgs::PoseWithCovarianceStampedConstPtr& pose_msg) {
+  void initialpose_callback(const geometry_msgs::PoseWithCovarianceStampedConstPtr& pose_msg) {//rviz在此处的用法
     NODELET_INFO("initial pose received!!");
     std::lock_guard<std::mutex> lock(pose_estimator_mutex);
     const auto& p = pose_msg->pose.pose.position;
@@ -230,7 +231,7 @@ private:
    */
   void publish_odometry(const ros::Time& stamp, const Eigen::Matrix4f& pose) {
     // broadcast the transform over tf
-    geometry_msgs::TransformStamped odom_trans = matrix2transform(stamp, pose, "map", "velodyne");
+    geometry_msgs::TransformStamped odom_trans = matrix2transform(stamp, pose, "map", "rslidar");//todo gc velodyne->rslidar
     pose_broadcaster.sendTransform(odom_trans);
 
     // publish the transform
@@ -243,7 +244,7 @@ private:
     odom.pose.pose.position.z = pose(2, 3);
     odom.pose.pose.orientation = odom_trans.transform.rotation;
 
-    odom.child_frame_id = "velodyne";
+    odom.child_frame_id = "rslidar";//todo gc velodyne->rslidar
     odom.twist.twist.linear.x = 0.0;
     odom.twist.twist.linear.y = 0.0;
     odom.twist.twist.angular.z = 0.0;
